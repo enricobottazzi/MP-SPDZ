@@ -1,0 +1,111 @@
+from Compiler.types import sint, Matrix, Array, cint
+from Compiler.library import print_ln, public_input
+from Compiler.util import if_else
+
+# Scenario: A group of 3 parties have IOUs with each other.
+# For example
+# 0 -> 1: 100
+# 0 -> 2: 50
+# 1 -> 2: 25
+
+# Note that the IOUs are only one way to avoid duplicates. 
+# 0 -> 1: 100 means party 0 owes party 1 100.
+# 0 -> 1: -100 means party 1 owes party 0 100.
+
+# Here 2 parties (0 and 1) come together to net out their IOUs.
+# Party 0 will bring to the MPC their IOUs (0->1: 100 and 0->2: 50)
+# Party 1 will bring to the MPC their IOUs (1->2: 25)
+# NOTE: Party 1 won't bring 0->1 to the table as the hurdle for that is on the party that comes first in the IOU (in this case party 0)
+# Not sure if it makes more sense to let parties bring all their IOUS
+# and delete duplicates within the MPC (in that case they might even not know who they are doing the MPC with)
+# NOTE: need mechanism to ensure inputs are built correctly
+
+def debug(val, announce_str=""):
+    reveal_val = val.reveal()
+    print_ln(announce_str + "%s", reveal_val)
+
+NUM_PARTIES = 3
+
+ious = Matrix(NUM_PARTIES, NUM_PARTIES, sint)
+
+# NOTE: Party 0 always has to be the one with the smaller ID
+party_0 = 0 
+party_1 = 1
+
+# Fetch the indexes of the IOUs that are shared between the parties from the public inputs
+indexes = Matrix(3, 2, cint)
+for i in range(3):
+    indexes[i][0] = public_input()
+    indexes[i][1] = public_input()
+
+# 1.
+# Fill the IOUs matrix with the IOUs from the parties
+# TODO: improve this
+for i in range(3):
+    party = 0
+    if i < 2:
+        party = party_0
+    elif i == 2:
+        party = party_1
+
+    ious[indexes[i][0]][indexes[i][1]] = sint.get_input_from(party)
+
+# 2. 
+# Calculate the net balance for each party 
+net_balances = Array(3, sint)
+
+# Compute net balances by subtracting owed amounts and adding amounts owed to them
+for party in range(NUM_PARTIES):
+    for counterparty in range(NUM_PARTIES):
+        if party != counterparty:
+            net_balances[party] += ious[counterparty][party] - ious[party][counterparty]
+
+def min_in_array(balances):
+    min_index = 0
+    min_value = balances[0]
+    for i in range(1, len(balances)):
+        new_min_value = min_value.min(balances[i])
+        min_index = if_else(min_value == new_min_value, min_index, i)
+        min_value = new_min_value
+
+    return min_index, min_value
+
+def max_in_array(balances):
+    max_index = 0
+    max_value = balances[0]
+    for i in range(1, len(balances)):
+        new_max_value = max_value.max(balances[i])
+        max_index = if_else(max_value == new_max_value, max_index, i)
+        max_value = new_max_value
+
+    return max_index, max_value
+
+# 3. Update IOUs
+new_ious = Matrix(NUM_PARTIES, NUM_PARTIES, sint)
+
+for i in range(3):
+    min_index, min_balance = min_in_array(net_balances)
+    max_index, max_balance = max_in_array(net_balances)
+
+    amount = abs(min_balance).min(abs(max_balance))
+    amount = if_else(min_index > max_index, -amount, amount)
+
+    from_index = min_index.min(max_index)
+    to_index = min_index.max(max_index)
+
+    for y in range(3):
+        for j in range(3):
+            new_ious[y][j] = if_else((from_index == y) & (to_index == j), amount, new_ious[y][j])
+    for z in range(3):        
+        net_balances[z] = if_else(z == from_index, net_balances[z] + amount, net_balances[z])
+        net_balances[z] = if_else(z == to_index, net_balances[z] - amount, net_balances[z])
+        
+# Print initial IOUs
+for i in range(3):
+    for j in range(3):
+        debug(ious[i][j], "ious[%d][%d]: " % (i, j))
+
+# Print updated IOUs
+for i in range(3):
+    for j in range(3):
+        debug(new_ious[i][j], "new_ious[%d][%d]: " % (i, j))
