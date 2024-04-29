@@ -1,5 +1,5 @@
-from Compiler.types import sint, Array, cint, getNamedTupleType
-from Compiler.library import print_ln, public_input
+from Compiler.types import sint, Array, cint, getNamedTupleType, MemValue
+from Compiler.library import print_ln, public_input, if_
 from Compiler.util import if_else, cond_swap
 
 # Scenario: A group of 3 parties have IOUs with each other.
@@ -19,6 +19,8 @@ from Compiler.util import if_else, cond_swap
 # Not sure if it makes more sense to let parties bring all their IOUS
 # and delete duplicates within the MPC (in that case they might even not know who they are doing the MPC with)
 # NOTE: need mechanism to ensure inputs are built correctly
+
+# TODO: reduce the number of loops
 
 def debug(val, announce_str=""):
     reveal_val = val.reveal()
@@ -41,13 +43,13 @@ for i in range(3):
 
 # 1.
 # Fill the ious_val Array with the IOUs amounts from the parties (the corresponding indexes are in the indexes array)
+# TODO: this wouldn't work for other combinations - TO FIX
 for i in range(3):
-    party = 0
-    if i < 2:
-        party = party_0
-    elif i == 2:
-        party = party_1
-
+    party = MemValue(0)
+    @if_(indexes[i]._from.reveal() == party_1)
+    def _():
+        party.write(1)
+    
     ious_val[i] = sint.get_input_from(party)
 
 # 2. 
@@ -82,8 +84,8 @@ def max_in_array(balances):
 
     return max_index, max_value
 
-def sort(a, b):
-        comp = a < b
+def sort_ascending(a, b):
+        comp = a > b
         res = cond_swap(comp, a, b)
         return res
 
@@ -94,11 +96,10 @@ for i in range(3):
     debtor_index, debtor_balance = min_in_array(net_balances)
     creditor_index, creditor_balance = max_in_array(net_balances)
     amount = (-debtor_balance).min(creditor_balance) # amount is positive now
-    from_index, to_index = sort(debtor_index, creditor_index)
+    from_index, to_index = sort_ascending(debtor_index, creditor_index)
 
     # update the new IOU and the net balances
-    # note that revealing the `index_to_update` is not secure therefore we perform the loop
-    # TODO: more efficient way to do this
+    # note that revealing the `index_to_update` is not secure therefore we have to perform this sub loop
     for i in range(3):
         new_ious_val[i] = if_else((indexes[i]._from == from_index) & (indexes[i]._to == to_index), amount, new_ious_val[i])
         net_balances[i] = if_else(i == from_index, net_balances[i] + amount, net_balances[i])
