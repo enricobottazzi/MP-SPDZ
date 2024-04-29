@@ -28,6 +28,8 @@ def debug(val, announce_str=""):
 
 NUM_PARTIES = 3
 
+program.set_bit_length(32)
+
 ious_val = Array(NUM_PARTIES, sint)
 
 # NOTE: Party 0 always has to be the one with the smaller ID
@@ -87,6 +89,7 @@ def max_in_array(balances):
 def sort_ascending(a, b):
         comp = a > b
         res = cond_swap(comp, a, b)
+        res = sint.hard_conv(res) # Might not be necessary - pattern matched with `vickrey.mpc`
         return res
 
 # 3. Update IOUs
