@@ -1,4 +1,4 @@
-from Compiler.types import sint, Array, cint, MultiArray
+from Compiler.types import sint, Array, cint, getNamedTupleType
 from Compiler.library import print_ln, public_input
 from Compiler.util import if_else, cond_swap
 
@@ -33,10 +33,11 @@ party_0 = 0
 party_1 = 1
 
 # Fetch the indexes of the IOUs that are shared between the parties from the public inputs
-indexes = MultiArray([NUM_PARTIES, 2], cint)
+Index = getNamedTupleType('_from', '_to')
+indexes = Index.get_array(NUM_PARTIES, cint)
+
 for i in range(3):
-    indexes[i][0] = public_input()
-    indexes[i][1] = public_input()
+    indexes[i] = (public_input(), public_input())
 
 # 1.
 # Fill the ious_val Array with the IOUs amounts from the parties (the corresponding indexes are in the indexes array)
@@ -55,8 +56,8 @@ net_balances = Array(3, sint)
 
 # Compute net balances by subtracting owed amounts and adding amounts owed to them
 for i in range(NUM_PARTIES):
-    giver = indexes[i][0]
-    receiver = indexes[i][1]
+    giver = indexes[i]._from
+    receiver = indexes[i]._to
     amount = ious_val[i]
     net_balances[giver] -= amount
     net_balances[receiver] += amount
@@ -99,7 +100,7 @@ for i in range(3):
     # note that revealing the `index_to_update` is not secure therefore we perform the loop
     # TODO: more efficient way to do this
     for i in range(3):
-        new_ious_val[i] = if_else((indexes[i][0] == from_index) & (indexes[i][1] == to_index), amount, new_ious_val[i])
+        new_ious_val[i] = if_else((indexes[i]._from == from_index) & (indexes[i]._to == to_index), amount, new_ious_val[i])
         net_balances[i] = if_else(i == from_index, net_balances[i] + amount, net_balances[i])
         net_balances[i] = if_else(i == to_index, net_balances[i] - amount, net_balances[i])
         
