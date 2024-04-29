@@ -1,6 +1,6 @@
 from Compiler.types import sint, Array, cint, MultiArray
 from Compiler.library import print_ln, public_input
-from Compiler.util import if_else
+from Compiler.util import if_else, cond_swap
 
 # Scenario: A group of 3 parties have IOUs with each other.
 # For example
@@ -81,6 +81,11 @@ def max_in_array(balances):
 
     return max_index, max_value
 
+def sort(a, b):
+        comp = a < b
+        res = cond_swap(comp, a, b)
+        return res
+
 # 3. Update IOUs
 new_ious_val = Array(NUM_PARTIES, sint)
 
@@ -88,8 +93,7 @@ for i in range(3):
     debtor_index, debtor_balance = min_in_array(net_balances)
     creditor_index, creditor_balance = max_in_array(net_balances)
     amount = (-debtor_balance).min(creditor_balance) # amount is positive now
-    from_index = debtor_index.min(creditor_index)
-    to_index = debtor_index.max(creditor_index) # TODO: more efficient way to do this
+    from_index, to_index = sort(debtor_index, creditor_index)
 
     # update the new IOU and the net balances
     # note that revealing the `index_to_update` is not secure therefore we perform the loop
